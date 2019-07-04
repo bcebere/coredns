@@ -21,7 +21,8 @@ type Zone struct {
 	origLen int
 	file    string
 	*tree.Tree
-	Apex Apex
+	Apex
+	apexMu sync.RWMutex
 
 	TransferTo   []string
 	StartupOnce  sync.Once
@@ -29,10 +30,9 @@ type Zone struct {
 	Expired      *bool
 
 	ReloadInterval time.Duration
-	LastReloaded   time.Time
 	reloadMu       sync.RWMutex
 	reloadShutdown chan bool
-	Upstream       *upstream.Upstream // Upstream for looking up external names during the resolution process
+	Upstream       *upstream.Upstream // Upstream for looking up external names during the resolution process.
 }
 
 // Apex contains the apex records of a zone: SOA, NS and their potential signatures.
@@ -52,10 +52,8 @@ func NewZone(name, file string) *Zone {
 		Tree:           &tree.Tree{},
 		Expired:        new(bool),
 		reloadShutdown: make(chan bool),
-		LastReloaded:   time.Now(),
 	}
 	*z.Expired = false
-
 	return z
 }
 
@@ -184,11 +182,6 @@ func (z *Zone) All() []dns.RR {
 		records = append(z.Apex.SIGSOA, records...)
 	}
 	return append([]dns.RR{z.Apex.SOA}, records...)
-}
-
-// Print prints the zone's tree to stdout.
-func (z *Zone) Print() {
-	z.Tree.Print()
 }
 
 // NameFromRight returns the labels from the right, staring with the
